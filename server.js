@@ -30,6 +30,8 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 const ADMIN_EMAILS = [
   'meghashruti2003@gmail.com',
   'admin@3rsandmconsultants.com',
+  'ranjeet@3rsandmconsultants.com',
+  'debashis.teri@3rsandmconsultants.com',
 ]
 
 // Check usage endpoint
