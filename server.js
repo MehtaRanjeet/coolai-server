@@ -11,6 +11,15 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error('MongoDB error:', err))
 
+// User Schema
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+}, { timestamps: true })
+
+const User = mongoose.model('User', userSchema)
+
 // Usage Schema
 const usageSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -26,13 +35,38 @@ app.use(express.json())
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-// Admin emails — unlimited free access
 const ADMIN_EMAILS = [
   'meghashruti2003@gmail.com',
   'admin@3rsandmconsultants.com',
   'ranjeet@3rsandmconsultants.com',
   'debashis.teri@3rsandmconsultants.com',
 ]
+
+// Register endpoint
+app.post('/api/register', async (req, res) => {
+  const { name, email, password } = req.body
+  try {
+    const existing = await User.findOne({ email: email.toLowerCase() })
+    if (existing) return res.status(400).json({ error: 'Email already registered' })
+    const user = new User({ name, email: email.toLowerCase(), password })
+    await user.save()
+    res.json({ success: true, user: { name: user.name, email: user.email } })
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// Login endpoint
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body
+  try {
+    const user = await User.findOne({ email: email.toLowerCase(), password })
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' })
+    res.json({ success: true, user: { name: user.name, email: user.email } })
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
 
 // Check usage endpoint
 app.get('/api/usage/:email', async (req, res) => {
