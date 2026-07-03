@@ -3,6 +3,8 @@ const cors = require('cors')
 const dotenv = require('dotenv')
 const Groq = require('groq-sdk')
 const mongoose = require('mongoose')
+const jwt = require('jsonwebtoken')
+const bcrypt = require('bcryptjs')
 
 dotenv.config()
 
@@ -154,11 +156,36 @@ app.post('/api/chat', async (req, res) => {
   }
 })
 
+// Admin login — verifies credentials, issues a JWT
+app.post('/api/admin/login', async (req, res) => {
+  const { username, password } = req.body
+  try {
+    if (username !== process.env.ADMIN_USERNAME) {
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+    const valid = await bcrypt.compare(password, process.env.ADMIN_PASSWORD_HASH)
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' })
+
+    const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '12h' })
+    res.json({ token })
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 // Admin middleware — protect all /api/admin routes
 const adminAuth = (req, res, next) => {
-  const token = req.headers['x-admin-token']
-  if (token !== 'CoolAI_user@1234') return res.status(401).json({ error: 'Unauthorized' })
-  next()
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1] // "Bearer <token>"
+  if (!token) return res.status(401).json({ error: 'Unauthorized' })
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    if (decoded.role !== 'admin') return res.status(401).json({ error: 'Unauthorized' })
+    next()
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' })
+  }
 }
 
 // Get all users
