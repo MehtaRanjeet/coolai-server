@@ -154,6 +154,66 @@ app.post('/api/chat', async (req, res) => {
   }
 })
 
+// Admin middleware — protect all /api/admin routes
+const adminAuth = (req, res, next) => {
+  const token = req.headers['x-admin-token']
+  if (token !== 'CoolAI_user@1234') return res.status(401).json({ error: 'Unauthorized' })
+  next()
+}
+
+// Get all users
+app.get('/api/admin/users', adminAuth, async (req, res) => {
+  try {
+    const users = await User.find({}, '-password').sort({ createdAt: -1 })
+    const usages = await Usage.find({})
+    const usageMap = {}
+    usages.forEach(u => { usageMap[u.email] = u })
+
+    const result = users.map(user => ({
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+      visits: usageMap[user.email]?.visits || 0,
+      paid: usageMap[user.email]?.paid || false,
+      isAdmin: ADMIN_EMAILS.includes(user.email)
+    }))
+
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// Grant premium access
+app.post('/api/admin/grant', adminAuth, async (req, res) => {
+  const { email } = req.body
+  try {
+    await Usage.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { $set: { paid: true } },
+      { upsert: true, new: true }
+    )
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// Revoke premium access
+app.post('/api/admin/revoke', adminAuth, async (req, res) => {
+  const { email } = req.body
+  try {
+    await Usage.findOneAndUpdate(
+      { email: email.toLowerCase() },
+      { $set: { paid: false } },
+      { upsert: true, new: true }
+    )
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
